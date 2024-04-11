@@ -12,7 +12,7 @@ func TestCreateChanel(t *testing.T) {
 
 	go func() {
 		time.Sleep(2 * time.Second)
-		chanel <- "ashel"
+
 		fmt.Println("selesai mengirim data")
 	}()
 
