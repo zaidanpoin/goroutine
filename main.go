@@ -2,63 +2,74 @@ package main
 
 import (
 	"fmt"
-	"runtime"
+	"sync"
+	"time"
 )
 
-func main() {
-	runtime.GOMAXPROCS(2)
-
-	// // deklarasi channel
-	// var messages = make(chan string)
-
-	// var sayHelloTo = func(who string) {
-	// 	time.Sleep(5 * time.Second)
-	// 	var data = fmt.Sprintf("hello %s", who)
-	// 	// send data ke channel 'message'
-	// 	messages <- data
-	// }
-
-	// // jalankan fungsi 'sayHelloTo' dalam goroutine (concurrent)
-	// go sayHelloTo("Imam Permana")
-	// go sayHelloTo("Budi")
-	// go sayHelloTo("Anya Geraldine")
-
-	// // receive data dari channel 'messages'
-	// fmt.Println(<-messages)
-	// fmt.Println(<-messages)
-	// fmt.Println(<-messages)
-
-	// time.Sleep(2 * time.Second)
-
-	// runtime.GOMAXPROCS(1)
-	// var start = time.Now()
-
-	// fmt.Println("main started at time ", time.Since(start))
-	// c := make(chan string)
-	// go func() {
-	// 	time.Sleep(10 * time.Second)
-	// 	fmt.Printf("hello from goroutine, at time %v\n", time.Since(start))
-	// 	c <- "goroutine say hi"
-	// }()
-
-	// fmt.Printf("goroutine sent this: '%v'. At time %v\n", <-c, time.Since(start))
-	// fmt.Printf("main stopped at time %v\n", time.Since(start))
-
-	var message = make(chan string)
-
-	nama := []string{"Imam", "Permana", "Budi", "Anya"}
-
-	for _, n := range nama {
-		go hello(message, n)
-	}
-
-	for i := 0; i < len(nama); i++ {
-		fmt.Println(<-message)
-	}
-	fmt.Println(message)
-
+func printRoutine(data chan string) {
+	res := <-data
+	fmt.Println(res)
 }
 
-func hello(msg chan string, nama string) {
-	msg <- nama
+func newRoutine(data chan string) {
+	data <- "from other routines"
+}
+
+func main() {
+	fmt.Println("goroutine pertama")
+	data1 := make(chan string)
+	go printRoutine(data1)
+	go newRoutine(data1)
+
+	time.Sleep(time.Second * 1)
+
+	fmt.Println("goroutine kedua")
+	data2 := make(chan string, 2)
+	data2 <- "a"
+	data2 <- "b"
+	fmt.Println(<-data2)
+	fmt.Println(<-data2)
+
+	fmt.Println("goroutine ketiga")
+	data3 := make(chan string, 2)
+	go func(n int) {
+		defer close(data3)
+		for i := 0; i < n; i++ {
+			data3 <- "a"
+		}
+	}(cap(data3))
+
+	for val := range data3 {
+		fmt.Println(val)
+	}
+
+	fmt.Println("goroutine keempat")
+	err := make(chan string)
+	data4 := make(chan int)
+
+	wg := new(sync.WaitGroup)
+	wg.Add(2)
+	go func(w *sync.WaitGroup, d chan int, e chan string) {
+		defer w.Done()
+		for i := 0; i < 10; i++ {
+			d <- i
+		}
+		close(d)
+		e <- "error"
+	}(wg, data4, err)
+
+	go func(w *sync.WaitGroup, d chan int, e chan string) {
+		defer w.Done()
+		for {
+			select {
+			case res := <-e:
+				fmt.Println(res)
+				return
+			case datas := <-d:
+				fmt.Println(datas)
+			}
+		}
+	}(wg, data4, err)
+
+	wg.Wait() // Menunggu kedua goroutine selesai
 }
